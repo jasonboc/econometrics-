@@ -1,0 +1,176 @@
+---
+title: "p4"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(lmtest)
+library(sandwich)
+library(stargazer)
+library(AER)
+library(car)
+smoking<-read.csv("Smoking.csv")
+smoking<-smoking%>%mutate(age2=age^2)
+movies<-read.csv("Movies.csv")
+movies<-movies%>%mutate(ln_assaults=log(assaults),attend=attend_v+attend_m+attend_n)
+```
+
+```{r}
+#probability of smoking for all workers is 0.2423
+mean(smoking$smoker)
+#probability of smoking for workers affected by workplace smoking bans is 0.290
+reg2<-lm(smoker~smkban,smoking)
+#probability of smoking for workers not affected by workplace smoking bans is 0.212
+summary(reg2)
+```
+```{r}
+#linear probability model of smoking with smkban
+model1<-lm(smoker~smkban,smoking)
+summary(model1)
+coeftest(model1, vcov = vcovHC(model1, type = "HC1"))
+#the difference is 0.077558 and the p-value is so small that the difference is statistically significant.
+```
+```{r}
+model2<-lm(smoker~smkban+female+age+age2+hsdrop+hsgrad+colsome+colgrad+black+hispanic,smoking)
+summary(model2)
+coeftest(model2, vcov = vcovHC(model2, type = "HC1"))
+linearHypothesis(model2,c("hsdrop=0","hsgrad=0","colsome=0","colgrad"),white.adjust="hc1",singular.ok=TRUE,test=c("F"))
+#the estimated effect of a smoking ban decreases in this case because there are more variables taking into effect on smoker.
+#from the coefficient test, we can see that the p-value of smkban is so small so that the coefficient is statistically significant. We can reject the null hypothesis and claim that the coefficient of smkban is nonzero.
+#from the coefficient test, we can see that p-value for F-test is small so that all coefficients are statistically significant. We can reject the null hypothesis and claim that all four coefficients are nonzero.Since the estimated coefficients decrease with the level of education, the probability of smoking decreases with the level of education.
+```
+
+
+
+```{r}
+model3<-glm(smoker~smkban+female+age+age2+hsdrop+hsgrad+colsome+colgrad+black+hispanic,family = binomial(link =
+"probit"),data=smoking)
+summary(model3)
+coeftest(model3, vcov = vcovHC(model3, type = "HC1"))
+linearHypothesis(model3,c("hsdrop=0","hsgrad=0","colsome=0","colgrad"),white.adjust="hc1",singular.ok=TRUE,test=c("F"))
+#the estimated effect of a smoking ban increases in this case because it is not a linear probability model,the coefficient is the effect on the z-score of a unit change in that coefficient.
+ 
+#from the coefficient test, we can see that the p-value of smkban is so small so that the coefficient is statistically significant. We can reject the null hypothesis and claim that the coefficient of smkban is nonzero.
+
+#from the coefficient test, we can see that p-value for F-test is small so that all coefficients are statistically significant. We can reject the null hypothesis and claim that all four coefficients are nonzero.Since the estimated coefficients decrease with the level of education, the probability of smoking decreases with the level of education.
+```
+
+```{r}
+model4<-glm(smoker~smkban+female+age+age2+hsdrop+hsgrad+colsome+colgrad+black+hispanic,smoking, family = binomial(link =
+"logit"))
+summary(model4)
+coeftest(model4, vcov = vcovHC(model4, type = "HC1"))
+linearHypothesis(model4,c("hsdrop=0","hsgrad=0","colsome=0","colgrad"),white.adjust="hc1",singular.ok=TRUE,test=c("F"))
+#the estimated effect of a smoking ban increases in this case because it is not a linear probability model,the coefficient is the effect on the z-score of a unit change in that coefficient.
+
+#from the coefficient test, we can see that the p-value of smkban is so small so that the coefficient is statistically significant. We can reject the null hypothesis and claim that the coefficient of smkban is nonzero.
+
+#from the coefficient test, we can see that p-value for F-test is small so that all coefficients are statistically significant. We can reject the null hypothesis and claim that all four coefficients are nonzero.Since the estimated coefficients decrease with the level of education, the probability of smoking decreases with the level of education.
+```
+#probit model
+```{r}
+predict(model3,data.frame(smkban=0,female=0,age=20,age2=400,hsdrop=1,hsgrad=0,colsome=0,colgrad=0,black=0,hispanic=0),type="response")
+predict(model3,data.frame(smkban=1,female=0,age=20,age2=400,hsdrop=1,hsgrad=0,colsome=0,colgrad=0,black=0,hispanic=0),type="response")
+#the smoking ban decreases 6% probability of smoking.
+```
+
+```{r}
+predict(model3,data.frame(smkban=0,female=1,age=40,age2=1600,hsdrop=0,hsgrad=0,colsome=0,colgrad=1,black=1,hispanic=0),type="response")
+predict(model3,data.frame(smkban=1,female=1,age=40,age2=1600,hsdrop=0,hsgrad=0,colsome=0,colgrad=1,black=1,hispanic=0),type="response")
+#the smoking ban decreases 3% probability of smoking.
+```
+
+#linear model
+```{r}
+predict(model2,data.frame(smkban=0,female=0,age=20,age2=400,hsdrop=1,hsgrad=0,colsome=0,colgrad=0,black=0,hispanic=0),type="response")
+predict(model2,data.frame(smkban=1,female=0,age=20,age2=400,hsdrop=1,hsgrad=0,colsome=0,colgrad=0,black=0,hispanic=0),type="response")
+#the smoking ban decreases 5% probability of smoking.
+```
+
+```{r}
+predict(model2,data.frame(smkban=0,female=1,age=40,age2=1600,hsdrop=0,hsgrad=0,colsome=0,colgrad=1,black=1,hispanic=0),type="response")
+predict(model2,data.frame(smkban=1,female=1,age=40,age2=1600,hsdrop=0,hsgrad=0,colsome=0,colgrad=1,black=1,hispanic=0),type="response")
+#the smoking ban decreases 5% probability of smoking.
+```
+#logit model
+```{r}
+predict(model4,data.frame(smkban=0,female=0,age=20,age2=400,hsdrop=1,hsgrad=0,colsome=0,colgrad=0,black=0,hispanic=0),type="response")
+predict(model4,data.frame(smkban=1,female=0,age=20,age2=400,hsdrop=1,hsgrad=0,colsome=0,colgrad=0,black=0,hispanic=0),type="response")
+#the smoking ban decreases 7% probability of smoking.
+```
+
+```{r}
+predict(model4,data.frame(smkban=0,female=1,age=40,age2=1600,hsdrop=0,hsgrad=0,colsome=0,colgrad=1,black=1,hispanic=0),type="response")
+predict(model4,data.frame(smkban=1,female=1,age=40,age2=1600,hsdrop=0,hsgrad=0,colsome=0,colgrad=1,black=1,hispanic=0),type="response")
+#the smoking ban decreases 3% probability of smoking.
+```
+#The three models print out different results. I think probit and logit model make most sense. The estimated results are reasonable in a real-world sense.
+
+```{r}
+model5<-lm(ln_assaults~year1+year2+year3+year4+year5+year6+year7+year8+year9+year10+month1+month2+month3+month4+month5+month6+month7+month8+month9+month10+month11+month12,movies)
+summary(model5)
+coeftest(model5, vcov = vcovHC(model5, type = "HC1"))
+linearHypothesis(model5,c("month1=month2","month2=month3","month3=month4","month4=month5","month5=month6","month6=month7","month7=month8","month8=month9","month9=month10","month10=month11"),singular.ok=TRUE,test=c("F"))
+#The F-statistic on the 11 monthly indicators is 66.768 with a p-value that is essentially 0. Thus, there is strong evidence of seasonality in assaults.  (The estimates imply that there are more assaults in the summer than in the winter.)
+```
+
+```{r}
+model6<-lm(attend~year1+year2+year3+year4+year5+year6+year7+year8+year9+year10+month1+month2+month3+month4+month5+month6+month7+month8+month9+month10+month11+month12,movies)
+summary(model6)
+coeftest(model6, vcov = vcovHC(model6, type = "HC1"))
+linearHypothesis(model6,c("month1=month2","month2=month3","month3=month4","month4=month5","month5=month6","month6=month7","month7=month8","month8=month9","month9=month10","month10=month11"),singular.ok=TRUE,test=c("F"))
+#The F-statistic on the 11 monthly indicators is 36.939 with a p-value that is essentially 0. Thus, there is strong evidence of seasonality in movie attendance.  (The estimates imply that attendance is high in the summer.)
+```
+
+```{r}
+model7<-lm(ln_assaults~attend_v+attend_m+attend_n+h_chris+h_newyr+h_easter+h_july4+h_mem+h_labor+w_maxa+w_maxb+w_maxc+w_mina+w_minb+w_minc+w_rain+w_snow+year1+year2+year3+year4+year5+year6+year7+year8+year9+year10+month1+month2+month3+month4+month5+month6+month7+month8+month9+month10+month11+month12,movies)
+summary(model7)
+coeftest(model7, vcov = vcovHC(model7, type = "HC1"))
+#An increase in strongly violent movie attendance of one million viewers is predicted to reduce assaults by 0.32%.  The coefficient is statistically significant at the 1% significance level.
+linearHypothesis(model7,c("attend_v=attend_m","attend_v=attend_n"),white.adjust="hc1", singular.ok = TRUE,test=c("F"))
+#The F-statistic suggests that the coefficients of attend_v , attend_m , attend_n are not statistically significantly different from one another.
+predict.effect=6*(-0.0032)-2*(-0.0031)-(-0.0021)
+conf=c(-0.011-1.96*0.011/sqrt(1.55),-0.011+1.96*0.011/sqrt(1.55))
+#There is a decrease in assaults of 1.1%. The 95% confidence interval is -0.028 to – 0.0063
+```
+
+```{r}
+model8<-lm(attend_v~pr_attend_v,movies)
+model9<-lm(attend_m~pr_attend_m,movies)
+model10<-lm(attend_n~pr_attend_n,movies)
+vpredict<-predict(model8)
+mpredict<-predict(model9)
+npredict<-predict(model10)
+model11<-lm(ln_assaults~vpredict+mpredict+npredict+h_chris+h_newyr+h_easter+h_july4+h_mem+h_labor+w_maxa+w_maxb+w_maxc+w_mina+w_minb+w_minc+w_rain+w_snow+year1+year2+year3+year4+year5+year6+year7+year8+year9+year10+month1+month2+month3+month4+month5+month6+month7+month8+month9+month10+month11+month12,movies)
+summary(model11)
+coeftest(model11, vcov = vcovHC(model11, type = "HC1"))
+#An increase in strongly violent movie attendance of one million viewers is predicted to reduce assaults by 0.27%.  The coefficient is statistically significant at the 1% significance level.
+linearHypothesis(model11,c("vpredict=mpredict","vpredict=npredict"),white.adjust="hc1", singular.ok = TRUE,test=c("F"))
+#The F-statistic suggests that the coefficients are not statistically significantly different from one another.
+predict.effect1=6*(-0.0027)-2*(-0.0030)-(-0.0018)
+conf1=c(-0.0084-1.96*0.0084/sqrt(1.41),-0.0084+1.96*0.0084/sqrt(1.41))
+#There is a decrease in assaults of 1.1%. The 95% confidence interval is -0.0223 to 0.00547
+```
+
+```{r}
+model12<-lm(attend_v~attend_v_f+attend_v_b,movies)
+model13<-lm(attend_m~attend_m_f+attend_m_b,movies)
+model14<-lm(attend_n~attend_n_f+attend_n_b,movies)
+vpredict1<-predict(model12)
+mpredict1<-predict(model13)
+npredict1<-predict(model14)
+model15<-lm(ln_assaults~vpredict1+mpredict1+npredict1+h_chris+h_newyr+h_easter+h_july4+h_mem+h_labor+w_maxa+w_maxb+w_maxc+w_mina+w_minb+w_minc+w_rain+w_snow+year1+year2+year3+year4+year5+year6+year7+year8+year9+year10+month1+month2+month3+month4+month5+month6+month7+month8+month9+month10+month11+month12,movies)
+summary(model15)
+coeftest(model15, vcov = vcovHC(model15, type = "HC1"))
+#An increase in strongly violent movie attendance of one million viewers is predicted to reduce assaults by 0.23%.  The coefficient is statistically significant at the 1% significance level.
+linearHypothesis(model15,c("vpredict1=mpredict1","vpredict1=npredict1"),white.adjust="hc1", singular.ok = TRUE,test=c("F"))
+#The F-statistic suggests that the coefficients are not statistically significantly different from one another.
+predict.effect12=6*(-0.0023)-2*(-0.0028)-(-0.0017)
+conf2=c(-0.0065-1.96*0.0065/sqrt(0.6),-0.0065+1.96*0.0065/sqrt(0.6))
+#There is a decrease in assaults of 1.1%. The 95% confidence interval is -0.02295 to 0.00995
+```
+#The J statistic is 8.55, which is distributed   under the null hypothesis that the instruments are exogenous. The 10% critical value (from Table 3 in the appendix of the text) is 10.64, so the null hypothesis is not rejected.
+
+#Movie attendance appears to reduce assaults, but there is little evidence of a differential effect of violent movies.  This result is consistent with a mechanism in which movies attendance is a substitute for other activities, such as drinking, that increase assaults. 

@@ -1,0 +1,141 @@
+---
+title: "hw4"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+guns<-read.csv('guns.csv')
+income<-read.csv('Income_Democracy.csv')
+library(lmtest)
+library(tidyverse)
+library(sandwich)
+library(car)
+library(plm)
+```
+
+```{r}
+guns<-guns%>%mutate(ln_vio=log(vio),ln_rob=log(rob),ln_mur=log(mur))
+reg1<-lm(ln_vio~shall,guns)
+reg2<-lm(ln_vio~shall+incarc_rate+density+avginc++pop+pb1064+pw1064+pm1029,guns)
+summary(reg1)
+summary(reg2)
+coeftest(reg1, vcov = vcovHC(reg1, type = "HC1"))
+coeftest(reg2, vcov = vcovHC(reg2, type = "HC1"))
+```
+#5ai the result suggests that  if the state has a shall-carry law in effect in that year, there is a 36.8% fall in violent crimes. This estimate is large in a real-world sense.
+
+#5aii the coefficient on shall-issue law turns from -0.44 to -0.37, so the estimated effect of shall-issue law has changed and both are highly statistically significant and real-world significant.
+
+#5aiii Example: Attitudes towards guns and crime.
+
+```{r}
+reg3<-plm(ln_vio~shall+incarc_rate+density+avginc++pop+pb1064+pw1064+pm1029+factor(stateid),data=guns, model = "within", index = c("stateid", "year"))
+summary(reg3)
+coeftest(reg3, vcovHC(reg3, type = 'HC1', cluster = 'group'))
+```
+#5b The coefficient falls to -0.046,a large reduction in the coefficient from regression(2). Hence, there was significant omitted variable bias in regression(2). The estimate is not significant from zero.
+```{r}
+reg4<-plm(ln_vio~shall+incarc_rate+density+avginc++pop+pb1064+pw1064+pm1029+factor(year),data=guns, model = "within", index = c("stateid", "year"))
+summary(reg4)
+coeftest(reg4, vcovHC(reg4, type = 'HC1', cluster = 'group'))
+```
+#5c the coefficient falls to -0.028, which is insignificantly different from zero,this regression seems better specified since the time effects are jointly statistically significant.
+
+```{r}
+reg5<-lm(ln_rob~shall,guns)
+reg6<-lm(ln_rob~shall+incarc_rate+density+avginc++pop+pb1064+pw1064+pm1029,guns)
+summary(reg5)
+summary(reg6)
+coeftest(reg5, vcov = vcovHC(reg5, type = "HC1"))
+coeftest(reg6, vcov = vcovHC(reg6, type = "HC1"))
+```
+
+```{r}
+reg7<-plm(ln_rob~shall+incarc_rate+density+avginc++pop+pb1064+pw1064+pm1029+factor(stateid),data=guns, model = "within", index = c("stateid", "year"))
+summary(reg7)
+coeftest(reg7, vcovHC(reg7, type = 'HC1', cluster = 'group'))
+```
+
+```{r}
+reg8<-plm(ln_rob~shall+incarc_rate+density+avginc++pop+pb1064+pw1064+pm1029+factor(year),data=guns, model = "within", index = c("stateid", "year"))
+summary(reg8)
+coeftest(reg8, vcovHC(reg8, type = 'HC1', cluster = 'group'))
+```
+```{r}
+reg9<-lm(ln_mur~shall,guns)
+reg10<-lm(ln_mur~shall+incarc_rate+density+avginc++pop+pb1064+pw1064+pm1029,guns)
+summary(reg9)
+summary(reg10)
+coeftest(reg9, vcov = vcovHC(reg9, type = "HC1"))
+coeftest(reg10, vcov = vcovHC(reg10, type = "HC1"))
+```
+
+```{r}
+reg11<-plm(ln_mur~shall+incarc_rate+density+avginc++pop+pb1064+pw1064+pm1029+factor(stateid),data=guns, model = "within", index = c("stateid", "year"))
+summary(reg11)
+coeftest(reg11, vcovHC(reg11, type = 'HC1', cluster = 'group'))
+```
+
+```{r}
+reg12<-plm(ln_mur~shall+incarc_rate+density+avginc++pop+pb1064+pw1064+pm1029+factor(year),data=guns, model = "within", index = c("stateid", "year"))
+summary(reg12)
+coeftest(reg12, vcovHC(reg12, type = 'HC1', cluster = 'group'))
+```
+
+#5d Based on same regression on ln(rob) and ln(mur), the quantitative results are similar to the results using violent crimes: there is a large estimated effect of shall-carry law in first two regressions and the effect is small in state fixed and time fixed cases.
+
+#5e There is a potential two-way causality between this year's incarceration rate and the number of crimes because this year's incarceration rate is much like last year's.
+
+#5f Based on my analysis, the last regression is the most credible. But the  p-value for the coefficent of shall is so large that we cannot reject the null hypothesis. Therefore, I have to say that there is no statistical significant evidence that shall-carry law have any effect on crime rates.
+
+#6a Clearly the data set is not a balanced panel because we have data for some countries irregularly.
+
+#6b
+```{r}
+income%>%filter(dem_ind!='NA')%>%select(dem_ind)%>%summarise(min=min(dem_ind),max=max(dem_ind),mean=mean(dem_ind),sd=sd(dem_ind),percentile_10=quantile(dem_ind,0.1),percentile_25=quantile(dem_ind,0.25),percentile_50=quantile(dem_ind,0.5),percentile_75=quantile(dem_ind,0.75),percentile_90=quantile(dem_ind,0.9))
+income%>%filter(year=='2000'& country=='United States')%>%select(dem_ind)
+income%>%filter(country=='United States')%>%select(dem_ind)%>%summarise(mean=mean(dem_ind))
+income%>%filter(year=='2000'& country=='Libya')%>%select(dem_ind)
+income%>%filter(country=='Libya')%>%select(dem_ind)%>%summarise(mean=mean(dem_ind))
+filter<-income%>%select(dem_ind)%>%group_by(income$country)%>%summarise(mean=mean(dem_ind))
+filter%>%filter(mean>0.95)
+filter%>%filter(mean<0.1)
+filter%>%filter(mean>0.3 & mean<0.7)
+```
+
+#6ci the coefficient is 0.24 and is statistically significant.
+
+#6cii if per capita income increases by 20%, dem_ind is expected to increase by 0.048. 95% CI for the coefficient: (0.235673-1.96*0.007104,0.235673+1.96*0.007104)=(0.222,0.25) 95% CI for the prediction:20*(0.00222,0.0025)=(0.044,0.05).The predicted increase is large because it is near the right end of confidence interval.
+
+#6ciii The term clustered arises because these standard errors allow the regression errors to have anarbitrary correlation within a cluster, or grouping, but assume that the regression errors are uncorrelated across clusters. In the context of panel data, each cluster consists of an entity. Thus clustered standard errors allow for heteroskedasticity and for arbitrary autocorrelation within an entity but treat the errors as uncorrelated across entities. The results will change without clustered standard error.
+
+#6di People's attitude towards politics.
+
+#6dii  the coefficient decreases to 0.083 and is statistically significant. CI for the prediction will also decrease.
+
+#6diii The result drops little for me. Mostly because we have such few observations and besides that, they do not explain much of the variation of the data.
+
+#6iv Macroeconomic policy.
+
+#6v the coefficient decreases to 0.054 and is statistically significant. CI for the prediction will also decrease.
+
+#6vi They should be included in the regression and once included, the coefficient will drop.
+
+#6g I would conclude that there is little evidence of an income effect on demand for democracy.
+
+```{r}
+reg13<-lm(dem_ind~log_gdppc,income)
+summary(reg13)
+coeftest(reg13, vcov = vcovHC(reg13, type = "HC1"))
+reg14<-plm(dem_ind~log_gdppc+factor(country),data=income, model = "within", index = c("country", "year"))
+summary(reg14)
+coeftest(reg14, vcovHC(reg14, type = 'HC1', cluster = 'group'))
+remove<-income%>%filter(country!='Azerbaijan')
+reg15<-plm(dem_ind~log_gdppc+factor(country),data=remove, model = "within", index = c("country", "year"))
+summary(reg15)
+coeftest(reg15, vcovHC(reg15, type = 'HC1', cluster = 'group'))
+reg16<-plm(dem_ind~log_gdppc+factor(country)+factor(year),data=remove, model = "within", index = c("country", "year"))
+summary(reg16)
+coeftest(reg16, vcovHC(reg16, type = 'HC1', cluster = 'group'))
+```

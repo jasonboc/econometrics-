@@ -1,0 +1,222 @@
+---
+title: "pset6"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(caret)
+library(pls)
+library(glmnet)
+library(sandwich)
+library(car)
+library(lmtest)
+library(strucchange)
+train<-read.csv("CASchools_EE141_InSample.csv")
+test<-read.csv("CASchools_EE141_OutOfSample.csv")
+macro_q<-read.csv("macro_quarterly.csv")
+train=train[5:25]
+test=test[5:25]
+```
+
+```{r}
+train=train[,c(which(colnames(train)=="testscore"),which(colnames(train)!="testscore"))]
+test=test[,c(which(colnames(test)=="testscore"),which(colnames(test)!="testscore"))]
+dim.init <- dim(train)[2]
+
+for (i in 2: (dim.init) ) {
+    train[,paste(names(train)[i],"^2",sep="")] <- train[,i] * train[,i]
+    test[,paste(names(test)[i],"^2",sep="")] <- test[,i] * test[,i]
+}  
+
+for (i in (2: 21) ) {
+    for (j in (i : 21) ) {
+      if (i!= j){
+      train[,paste(names(train)[i],":",names(train)[j],sep="")] <- train[,i] * train[,j]
+      test[,paste(names(test)[i],":",names(test)[j],sep="")] <- test[,i] * test[,j]
+      }
+    }
+  }
+ 
+train=train%>%select(-`charter_s^2`)
+test=test%>%select(-`charter_s^2`)
+# (charter_s)^2 should be dropped from the original list of predictors because it is the square of a binary list which is the same as charter_s
+```
+
+```{r}
+y_train <- train %>% select(testscore) %>% as.matrix()
+X_train <- train %>% select(-testscore) %>% as.matrix()
+y_test  <- test %>% select(testscore) %>% as.matrix()
+X_test  <- test %>% select(-testscore) %>% as.matrix()
+X_train_unstd  <- cbind(X_train,as.vector(matrix(1,nrow(X_train))))
+X_test_unstd   <- cbind(X_test,as.vector(matrix(1,nrow(X_test))))
+preProc <- preProcess(train, method = c("center", "scale"))
+X_train_std <- predict(preProc, train) %>% select(-testscore) %>% as.matrix()
+X_test_std  <- predict(preProc, test) %>% select(-testscore) %>% as.matrix()
+y_train_std <- y_train - mean(y_train) 
+y_test_std  <- y_test - mean(y_train)
+```
+
+```{r}
+beta_OLS = qr.solve(X_train_std, y_train_std, tol = 1e-8)
+print(beta_OLS[1:20,1])
+beta_OLS_unstd <- qr.solve(X_train_unstd, y_train, tol = 1e-8)
+data_ctrl <- trainControl(method = "cv", number = 10)
+OLS_CV    <- train(testscore ~ .,   # model to fit
+                   data = train,                        
+                   trControl = data_ctrl,              # folds
+                   method = "lm",                      # specifying regression model
+                   na.action = na.pass)                # pass missing data to model - some models will handle this
+print("In sample OLS RMSPE")
+OLS_CV$results$RMSE
+OLS_predictions <- OLS_CV %>% predict(test)
+print("Out of sample OLS RMSPE")
+print(RMSE(OLS_predictions, test$testscore))
+```
+
+```{r}
+ridge_cv <- cv.glmnet(X_train_std, y_train_std, alpha = 0,
+                      standardize = FALSE, nfolds = 10)
+plot(ridge_cv)
+lambda_cv <- ridge_cv$lambda.min
+Ridge_cv_std    <- glmnet(X_train_std, y_train_std, alpha = 0, lambda = lambda_cv, standardize = FALSE)
+print("Ridge coefficients on selected standardized regressors")
+print(Ridge_cv_std$beta)
+Ridge_cv_unstd  <- glmnet(X_train_unstd, y_train, alpha = 0, lambda = lambda_cv, standardize = TRUE)
+
+y_hat_cv_is     <- predict(Ridge_cv_unstd, X_train_unstd)
+y_hat_cv_oos    <- predict(Ridge_cv_unstd, X_test_unstd)
+
+RMSPE_ridge_is  <- sqrt((t(y_train - y_hat_cv_is) %*% (y_train - y_hat_cv_is))/500)
+RMSPE_ridge_oos <- sqrt((t(y_test - y_hat_cv_oos) %*% (y_test - y_hat_cv_oos))/500)
+
+print("In sample Ridge RMSPE")
+print(RMSPE_ridge_is)
+print("Out of sample Ridge RMSPE")
+RMSPE_ridge_oos
+```
+
+
+```{r}
+lasso_cv1 <- cv.glmnet(X_train_std, y_train_std, alpha = 1,
+                      standardize = FALSE, nfolds = 10)
+
+# Plot cross-validation results
+plot(lasso_cv1)
+# Best cross-validated lambda
+lambda_cv1 <- lasso_cv1$lambda.min
+
+# Fit final model, get its in sample and out of sampe RMSPE
+lasso_cv_std    <- glmnet(X_train_std, y_train_std, alpha = 1, lambda = lambda_cv1, standardize = FALSE)
+print("LASSO coefficients on selected standardized regressors")
+print(lasso_cv_std$beta)
+
+# Estimate unstandardized LASSO model to generate predictions
+lasso_cv_unstd  <- glmnet(X_train_unstd, y_train, alpha = 1, lambda = lambda_cv, standardize = TRUE)
+y_hat_cv_is     <- predict(lasso_cv_unstd, X_train_unstd)
+y_hat_cv_oos    <- predict(lasso_cv_unstd, X_test_unstd)
+
+RMSPE_lasso_is  <- sqrt((t(y_train - y_hat_cv_is) %*% (y_train - y_hat_cv_is))/500)
+RMSPE_lasso_oos <- sqrt((t(y_test - y_hat_cv_oos) %*% (y_test - y_hat_cv_oos))/500)
+
+print("In sample LASSO RMSPE")
+print(RMSPE_lasso_is)
+print("Out of sample LASSO RMSPE")
+RMSPE_lasso_oos
+#From my observation,  the difference in Ridge and LASSO insample and out-of-sample RMSPEs is larger than that in OLS.
+```
+
+```{r}
+pca_model <- princomp(X_train_std)
+
+# Screeplot 
+y_plot = pca_model$sdev^2/sum(pca_model$sdev^2)
+barplot(y_plot,
+        main="Fraction of total variance of X explained",
+        xlab="Principal component number",
+        xlim=c(1,50),
+        col="blue")
+# k-fold cross validation 
+pcr_cv <- pcr(y_train_std ~ X_train_std, scale=TRUE, validation = "CV")
+
+# Plot the cross validation MSE
+PCA_cv_rmspe <- as.matrix(RMSEP(pcr_cv)$val[1,1,])
+plot(seq(1,length(PCA_cv_rmspe),1),PCA_cv_rmspe,
+        main="Square root of MSPE",
+        xlab="Principal component number",
+        ylab="RMSPE",
+        xlim=c(1,100),
+        lines(seq(1,length(PCA_cv_rmspe),1),PCA_cv_rmspe),
+        col="blue")
+# find the minimum MSPE
+cv.n_pca <- which.min(PCA_cv_rmspe)-1
+print(cat('Optimal number of principal components is', cv.n_pca))
+
+# Extract the estimated coefficients
+pca_cv_beta <- as.matrix(pcr_cv$coefficients[,1,cv.n_pca])
+print(pca_cv_beta)
+# Estimate final PCA model using optima number of PCs
+pcr_pred_is <- as.matrix(predict(pcr_cv, X_train_std, ncomp = cv.n_pca))
+pcr_pred_oos <- as.matrix(predict(pcr_cv, X_test_std, ncomp = cv.n_pca))
+RMSPE_PCA_is  <- sqrt((t(y_train_std - pcr_pred_is) %*% (y_train_std - pcr_pred_is))/500)
+RMSPE_PCA_oos <- sqrt((t(y_test_std - pcr_pred_oos) %*% (y_test_std - pcr_pred_oos))/500)
+
+print("In sample PCA RMSPE")
+print(RMSPE_PCA_is)
+print("Out of sample PCA RMSPE")
+RMSPE_PCA_oos
+# there is a smaller difference in  insample and out-of-sample RMSPEs in PCA than that of Ridge and Lasso. RMSPEs are smaller than those in OLS.
+```
+
+
+```{r}
+for (i in 1:dim(macro_q)) { # merge year and month into single counting variable
+  macro_q$ym[i] <- 1957 + i*.25 - 0.25
+}
+lagit4me <- function(serie,lag){
+  n = length(serie);
+  pad = rep(NA,lag);
+  return(c(pad,serie)[1:n]);
+}
+
+macro_q <- macro_q %>% mutate(ln_PCEP = log(PCECTPI),
+                              ln_PCEP_lag = lagit4me(ln_PCEP,1),
+                              ln_PCEP_lag2 = lagit4me(ln_PCEP,2),
+                              ln_PCEP_lag3 = lagit4me(ln_PCEP,3),
+                              infl_rate = (ln_PCEP - lagit4me(ln_PCEP,1))*400, 
+infl_rate_lag=lagit4me(infl_rate,1))
+#the units of infl are percentage per quarter
+fig_a <- ggplot(macro_q, aes(x = ym, y = infl_rate)) + 
+              geom_line() + 
+              labs(x = "Year", y = "inflation rate") +
+              ggtitle("US inflation rate 1963-2017")
+fig_a
+#Infl has a stochastic trend because there does not exist a clear trend on the graph.
+for (i in (1:228)){
+  macro_q$delta_infl[i]=macro_q$infl_rate[i]- macro_q$infl_rate_lag[i]
+}
+acf(macro_q$delta_infl,type="correlation",na.action = na.pass,plot = FALSE)
+fig_b <- ggplot(macro_q, aes(x = ym, y = delta_infl)) + 
+              geom_line() + 
+              labs(x = "Year", y = "difference in inflation rate") +
+              ggtitle("US difference inflation rate 1963-2017")
+fig_b
+```
+
+```{r}
+macro_q=macro_q%>%mutate(delta_infl_lag=lagit4me(delta_infl,1),delta_infl_lag2=lagit4me(delta_infl,2),delta_infl_lag3=lagit4me(delta_infl,3),delta_infl_lag4=lagit4me(delta_infl,4),delta_infl_lag5=lagit4me(delta_infl,5),delta_infl_lag6=lagit4me(delta_infl,6),delta_infl_lag7=lagit4me(delta_infl,7),delta_infl_lag8=lagit4me(delta_infl,8))
+model1 <- lm(delta_infl ~ delta_infl_lag, data = macro_q)
+summary(model1)
+coeftest(model1, vcov = vcovHC(model1, type = "HC1"))
+#the coefficient is statistically significant.
+model2 <- lm(delta_infl ~ delta_infl_lag+delta_infl_lag2, data = macro_q)
+summary(model2)
+coeftest(model2, vcov = vcovHC(model2, type = "HC1"))
+model3<-lm(delta_infl~delta_infl_lag+delta_infl_lag2+delta_infl_lag3+delta_infl_lag4+delta_infl_lag5+delta_infl_lag6+delta_infl_lag7+delta_infl_lag8,macro_q)
+summary(model3)
+coeftest(model3, vcov = vcovHC(model3, type = "HC1"))
+BIC(model3)
+AIC(model3)
+sctest(model2)
+```

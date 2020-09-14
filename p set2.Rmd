@@ -1,0 +1,73 @@
+---
+title: "Problem Set2"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_knit$set(root.dir = getwd())
+remove(list = ls())
+library(lmtest)
+library(tidyverse)
+library(sandwich)
+Cd<-read.csv("CollegeDistance.csv")
+growth<-read.csv("growth.csv")
+growth<-subset(growth,country_name!="Malta")
+```
+
+$$ \widehat{Education} = \underset{(0.0378)}{ 13.9559} - \underset{(0.0134)}{0.0734} \times Dist, \; \; R^2 = 0.00745, SER = 1.81 $$
+```{r}
+reg_cd<-lm(ed~dist,Cd)
+summary(reg_cd)
+print("Regression Summary with HAC standard errors");
+coeftest(reg_cd,vcov = vcovHC(reg_cd, type = "HC1"))
+slope<-reg_cd$coefficients[2]
+confint<-c(slope-1.96*0.0134,slope+1.96*0.0134)
+```
+#p-value for the slope is <5e-08, which is less than 0.01,0.05,0.1. So we reject the null hypothesis that b1=0 at all significance levels.
+# confidence interval is (-0.0996,-0.0471)
+
+```{r}
+cd_fem<-Cd %>% filter(female==1)
+reg_cdfem<-lm(ed~dist,cd_fem)
+summary(reg_cdfem)
+print("Regression Summary with HAC standard errors");
+coeftest(reg_cdfem,vcov = vcovHC(reg_cdfem, type = "HC1"))
+slope<-reg_cd$coefficients[2]
+confint<-c(slope-1.96*0.0184,slope+1.96*0.0184)
+```
+#confidence interval of female data is (-0.1094,-0.0373)
+
+```{r}
+cd_male<-Cd %>% filter(female==0)
+reg_cdmale<-lm(ed~dist,cd_male)
+summary(reg_cdmale)
+print("Regression Summary with HAC standard errors");
+coeftest(reg_cdmale,vcov = vcovHC(reg_cdmale, type = "HC1"))
+slope<-reg_cd$coefficients[2]
+confint<-c(slope-1.96*0.0196,slope+1.96*0.0196)
+```
+#confidence interval of male data is (-0.112,-0.035)
+
+```{r}
+summary<-matrix(c(mean(growth$growth),sd(growth$growth),min(growth$growth),max(growth$growth),mean(growth$tradeshare),sd(growth$tradeshare),min(growth$tradeshare),max(growth$tradeshare),mean(growth$yearsschool),sd(growth$yearsschool),min(growth$yearsschool),max(growth$yearsschool),mean(growth$oil),sd(growth$oil),min(growth$oil),max(growth$oil),mean(growth$rev_coups),sd(growth$rev_coups),min(growth$rev_coups),max(growth$rev_coups),mean(growth$assasinations),sd(growth$assasinations),min(growth$assasinations),max(growth$assasinations),mean(growth$rgdp60),sd(growth$rgdp60),min(growth$rgdp60),max(growth$rgdp60)),ncol=4,byrow = TRUE)
+colnames(summary)<-c("mean","standard deviation","minimum","maximum")
+rownames(summary)<-c("Growth","TradeShare","YearsSchool","Oil","Rev_Coups","Assassinations","RGDP60")
+summary<-as.data.frame(summary)
+summary
+reg_grow<-lm(growth~tradeshare+yearsschool+rev_coups+assasinations+rgdp60,growth)
+summary(reg_grow)
+newdata<-data.frame(tradeshare=summary$mean[2],yearsschool=summary$mean[3],rev_coups=summary$mean[5],assasinations=summary$mean[6],rgdp60=summary$mean[7])
+predict(reg_grow,newdata)
+newdata1<-data.frame(tradeshare=summary$mean[2]+summary$`standard deviation`[2],yearsschool=summary$mean[3],rev_coups=summary$mean[5],assasinations=summary$mean[6],rgdp60=summary$mean[7])
+predict(reg_grow,newdata1)
+
+```
+#the coefficient on Rev_Coups is  -2.1504256. It means that as the average number of annual revolutions increase by 1, the growth is expected to decrease by  2.1504256. It is large in a real-world sense.
+
+#c the predicted annual growth is 1.86912
+
+#d the predicted annual growth is 2.175273
+
+#e oil is omitted from the regression because the data for oil are all zero so they have zero effect on growth. If it were included, there should exist a coeffcient in front of oil that affects growth in a positive or negative way.
+
+

@@ -1,0 +1,130 @@
+---
+title: "Untitled"
+output: html_document
+---
+#3b
+big_mac <- read_excel("C:/MSBA/Ecometrics R/HW1/big mac.xlsx")big_mac$predicted_exchange_rate<-0
+big_mac$predicted_exchange_rate<-0
+for (i in 1:29){
+  big_mac$predicted_exchange_rate[i]<-big_mac$`Price of Big Mac`[i]/big_mac$`Price of Big Mac`[30]
+}
+plot(big_mac$`Actual Exchange Rate Per U.S. dollar`,big_mac$predicted_exchange_rate,xlab='actual exchange rate', ylab= 'predicted exchange rate')
+regression<-lm(formula = big_mac$`Actual Exchange Rate Per U.S. dollar`~big_mac$predicted_exchange_rate)
+summary(regression)
+#As PPP held, the slope of the regression 
+#is expected to be 1 and the intercept 
+#is expected to be zero. 
+#And in fact, the value of slope and intercept 
+#is not far from the values as I expect.
+
+#3c 
+#According to the graph,the obsevation of Indonesia 
+#may cause the slope and the intercept to 
+#differ from zero and one.
+
+#5
+#a
+
+# get mean and standard deviation of AHE in 1996 and 2015
+CPS96_15 <- read.csv("C:/MSBA/Ecometrics R/CPS96_15.csv")
+CPS96_15 %>% group_by(year) %>% summarise(mean=mean(ahe),std=sd(ahe))
+# get 95% CI from t test 
+ahe1996<-CPS96_15 %>% filter(year=="1996") %>% select(ahe)
+t.test(ahe1996$ahe)
+ahe2015<-CPS96_15 %>% filter(year=="2015") %>% select(ahe)
+t.test(ahe2015$ahe)
+# get 95% difference CI from t test
+t.test(ahe1996$ahe,ahe2015$ahe)
+```
+#b
+#inflation=(CPI2015-CPI1996)/CPI1996=(237.0-156.9)/156.9=0.511
+cps<-CPS96_15
+# Multiply 1992 ahe values by 0.64 to be convert 1992 data in terms of 2012
+for (i in 1:13201) {
+  if(cps$year[i]=='1996'){
+    cps$ahe[i]=1.51*cps$ahe[i]
+  }
+}
+# get mean and standard deviation from the new table
+cps %>% group_by(year) %>% summarise(mean=mean(ahe),std=sd(ahe))
+aahe1996<-cps %>% filter(year=="1996") %>% select(ahe)
+aahe2015<-cps %>% filter(year=="2015") %>% select(ahe)
+# get 95% CI from t tests
+t.test(aahe1996$ahe)
+t.test(aahe2015$ahe)
+t.test(aahe1996$ahe,aahe2015$ahe)
+
+#c
+# I would use the results of part b since the purchasing 
+# power will decrease due to the inflation from 1992 to 2012.
+
+#d
+# get 95% CIs by t-test on filtered values at year 2015
+ahe_highschool<-CPS96_15 %>% filter(bachelor==0 &  year=='2015') %>% select(ahe)
+ahe_college<-CPS96_15 %>% filter(bachelor==1 & year=='2015') %>% select(ahe)
+t.test(ahe_highschool$ahe)
+t.test(ahe_college$ahe)
+t.test(ahe_highschool$ahe,ahe_college$ahe)
+
+#e
+# get 95% CIs by t-test on filtered values adjusted by inflation at year 1996
+aahe_highschool<-cps %>% filter(bachelor==0 & year=='1996') %>% select(ahe)
+aahe_college<-cps %>% filter(bachelor==1 & year=='1996') %>% select(ahe)
+t.test(aahe_highschool$ahe)
+t.test(aahe_college$ahe)
+t.test(aahe_highschool$ahe,aahe_college$ahe)
+
+#f
+#condut a t test between high school ahe from 1996 to 2015
+t.test(aahe_highschool$ahe,ahe_highschool$ahe,alternative = 'less')
+# As the test indcates p-value is so small that we 
+# reject the null hypothesis and conclude that
+# real wages of high school graduates increases
+# from 1996 to 2015.
+
+#condut a t test on college ahe from 1996 to 2015
+t.test(aahe_college$ahe,ahe_college$ahe,alternative = 'less')
+# As the test indcates p-value is so small that we 
+# reject the null hypothesis and conclude that
+# real wages of high school graduates increases
+# from 1996 to 2015.
+
+t.test(aahe_highschool$ahe,aahe_college$ahe)
+t.test(ahe_highschool$ahe,ahe_college$ahe)
+
+#g
+# Collect statistics of mean and standard deviation from 1996 and 2015 group by men and women
+gg1<-CPS96_15%>% group_by(female) %>% filter(bachelor=='0' & year=='1996') %>% summarise(mean=mean(ahe),std=sd(ahe))
+gg2<-CPS96_15%>% group_by(female) %>% filter(bachelor=='0' & year=='2015') %>% summarise(mean=mean(ahe),std=sd(ahe))
+# get ahe data from men and women with high school diploma on 1996
+ahemen1996<-CPS96_15 %>% filter(bachelor=='0' & female=='0' & year=='1996') %>% select(ahe)
+ahewomen1996<-CPS96_15 %>%  filter(bachelor=='0' & female=='1' & year=='1996') %>% select(ahe)
+# conduct a two sample t test between men and women ahe
+t.test(ahemen1996,ahewomen1996)
+# get ahe data from men and women with high school diploma on 2015
+ahemen2015<-CPS96_15 %>% filter(bachelor=='0' & female=='0' & year=='2015') %>% select(ahe)
+ahewomen2015<-CPS96_15 %>% filter(bachelor=='0' & female=='1' & year=='2015') %>% select(ahe)
+# conduct a two sample t test between men and women ahe
+t.test(ahemen2015,ahewomen2015)
+
+#6
+# plot the scatter plot
+plot(TeachingRatings$beauty,TeachingRatings$course_eval,xlab='professor beauty', ylab='course evaluation')
+#the graph indicates a positive relationship between two variables
+reg<-lm(TeachingRatings$course_eval~TeachingRatings$beauty)
+summary(reg)
+mean(TeachingRatings$beauty)
+mean(TeachingRatings$course_eval)
+# As we can see, the mean of professor beauty is zero
+# so that as beauty=0, course evaluation is also on the mean 
+# which is 4, also the intercept of regression.
+Beautystock=mean(TeachingRatings$beauty)+sd(TeachingRatings$beauty)
+Beautywatson=mean(TeachingRatings$beauty)
+EvaStock=Beautystock*0.113+3.998
+EvaWatson=Beautywatson*0.113+3.998
+
+# the size of the slope is so small that it approaches zero
+# it means that professor's beauty has small impact on course evaluation
+
+# R square is 0.0336 which is so small that  
+# Beauty can hardly explain a large fraction of the variance in evaluations across courses

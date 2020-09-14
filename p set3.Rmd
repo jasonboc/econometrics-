@@ -1,0 +1,105 @@
+---
+title: "p set 3"
+output:
+  html_document: default
+  pdf_document: default
+  word_document: default
+---
+
+##a Education is the omitted variable in our regression and if it is both correlated with height and earnings,then it may lead to a omitted variable bias. The direction of the bias depends on the sign of the correlation between the included regressor(height) and u.Since education is positively realted,education enters u positively. Since education is positively related to height, the correlation between height and u is positive. Our estimated coefficient on height is biased upward, so the estimated slope on height is too large.
+```{r setup, include=FALSE}
+knitr::opts_knit$set(root.dir = getwd())
+remove(list = ls())
+library(lmtest)
+library(tidyverse)
+library(sandwich)
+library(car)
+earn<-read.csv('Earnings_and_Height.csv')
+lead<-read.csv('lead_mortality.csv')
+```
+
+```{r}
+earn_female<-earn%>%filter(sex=="0:female")%>%mutate(LT_HS=ifelse(educ<12,1,0))%>%mutate(HS=ifelse(educ==12,1,0))%>%mutate(Some_Col=ifelse(educ>12&educ<16,1,0))%>%mutate(College=ifelse(educ==16|educ>16,1,0))
+regress<-lm(earnings~height,earn_female)
+summary(regress)
+regress1<-lm(earnings~height+LT_HS+HS+Some_Col,earn_female)
+summary(regress1)
+coeftest(regress1, vcov = vcovHC(regress1, type = "HC1")) # r for robust
+linearHypothesis(regress1,c("LT_HS=0","HS=0","Some_Col=0"),white.adjust = "hc1")
+
+```
+#the coefficient changes from 515.2 to 135.142, it is consistent with cognitive ability explanation because the estimated slope in first regressor is larger.
+
+#If we include the variable college, we will have perfect multicolliearity which will make our estimate inaccurate.
+
+#Since p-value on F-statistics is very small, we can reject the null hypothesis and conclude that education variables do affect earnings.
+
+#The reason that the coefficient on LT_HS is more negative than other variables is that this dummy variable represents the lower education level in our classification. So the difference in the expected earnings between individuals having less than high school diploma and those having college degree is the highest and the absolute value of this difference falls as we moves up the education ladder.
+
+```{r}
+earn_male<-earn%>%filter(sex=="1:male")%>%mutate(LT_HS=ifelse(educ<12,1,0))%>%mutate(HS=ifelse(educ==12,1,0))%>%mutate(Some_Col=ifelse(educ>12&educ<16,1,0))%>%mutate(College=ifelse(educ==16|educ>16,1,0))
+regress2<-lm(earnings~height,earn_male)
+summary(regress2)
+regress3<-lm(earnings~height+LT_HS+HS+Some_Col,earn_male)
+summary(regress3)
+coeftest(regress3, vcov = vcovHC(regress1, type = "HC1")) # r for robust
+linearHypothesis(regress3,c("LT_HS=0","HS=0","Some_Col=0"),white.adjust = "hc1")
+
+```
+#the coefficient changes from 1306.9 to 744.7, it is consistent with cognitive ability explanation because the estimated slope in first regressor is larger.
+
+#If we include the variable college, we will have perfect multicolliearity which will make our estimate inaccurate.
+
+#Since p-value on F-statistics is very small, we can reject the null hypothesis and conclude that education variables do affect earnings.
+
+#The reason that the coefficient on LT_HS is more negative than other variables is that this dummy variable represents the lower education level in our classification. So the difference in the expected earnings between individuals having less than high school diploma and those having college degree is the highest and the absolute value of this difference falls as we moves up the education ladder.
+
+
+
+```{r}
+new_lead<-lead%>%mutate(lead_ph=lead*ph)
+mean<-lead%>%group_by(lead)%>%summarise(mean=mean(infrate))
+mean
+t.test(lead%>%filter(lead==0)%>%select(infrate),lead%>%filter(lead==1)%>%select(infrate))
+reg_inf<-lm(infrate~lead+ph+lead_ph,new_lead)
+summary(reg_inf)
+coeftest(reg_inf, vcov = vcovHC(reg_inf, type = "HC1")) # r for robust
+```
+#Since p-value is 0.37>0.05, we cannot reject null hypothesis and conclude that the two means are approximately equal.
+$$ \begin{align} \widehat{inf} = \underset{(0.15)}{0.919} + \underset{(0.208)}{0.46} lead - \underset{(0.021)}{0.075}ph + \underset{(0.028)}{0.057} (lead \times ph), \\ \; \; \bar{R}^2 = 0.2719   \end{align}   $$
+#For intercept: when lead and ph are not present, infant mortality is 0.919.
+
+#for coefficient of lead: for mean change in lead by one unit will bring about an increase of 0.46 in infant mortality when other variables stays the same.
+
+#for coefficient of ph: for mean change in ph by one unit will bring about an decrease of 0.075 in infant mortality when other variables stays the same.
+
+#for coefficient of lead*ph: for mean change in lead *ph by one unit will bring about an increase of 0.057 in infant mortality when other variables stays the same.
+
+```{r}
+lead.r<-new_lead%>%mutate(inf_lead0=0.919-0.075*ph,inf_lead1=1.381-0.1321*ph)
+plot(lead.r$ph,lead.r$inf_lead0)
+plot(lead.r$ph,lead.r$inf_lead1)
+mean(lead.r$ph)
+sd(lead.r$ph)
+mod<-new_lead%>%filter(ph==6.5)%>%select(lead,infrate)
+mod1<-lm(infrate~lead,mod)
+summary(mod1)
+confint(mod1,level=0.95)
+mod2<-lm(infrate~age+hardness+ph+typhoid_rate+np_tub_rate+mom_rate+population+precipitation+temperature+lead+foreign_share,lead)
+summary(mod2)
+```
+#As lead=0, inf=0.919-0.075*ph
+
+#As lead=1, inf=0.919-0.075*ph+0.46*1-0.057*ph=1.381-0.1321*ph
+
+#The difference in the two regression funtion is the different values of intercept and coefficent for ph.
+
+#p-value for coefficient on lead is 0.027<0.05, so the coefficient is significantly different from zero,hence Lead  does have a statistically significant effect on infant mortality.
+
+#p-value for coefficient on lead is 0.044<0.05, so the coefficient is significantly different from zero,the effect of Lead on infant mortality depends on pH, hence the dependence does have a statistically significant effect on infant mortality.
+
+#the estimate effect=0.919+0.462-0.075*7.32-0.057*7.32=0.415
+
+#none of the variables suffer from ommited variable bias.
+
+
